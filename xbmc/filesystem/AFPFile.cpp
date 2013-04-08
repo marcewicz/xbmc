@@ -26,12 +26,13 @@
 
 #if defined(HAS_FILESYSTEM_AFP)
 #include "AFPFile.h"
-#include "PasswordManager.h"
 #include "AFPDirectory.h"
-#include "Util.h"
+#include "network/Socket.cpp"
+#include "PasswordManager.h"
 #include "settings/AdvancedSettings.h"
 #include "settings/GUISettings.h"
 #include "threads/SingleLock.h"
+#include "Util.h"
 #include "utils/log.h"
 #include "utils/TimeUtils.h"
 
