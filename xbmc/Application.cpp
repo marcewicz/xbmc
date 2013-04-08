@@ -18,25 +18,179 @@
  *
  */
 
-#include "network/Network.h"
-#include "threads/SystemClock.h"
-#include "system.h"
 #include "Application.h"
-#include "interfaces/Builtins.h"
-#include "utils/Variant.h"
-#include "utils/Splash.h"
-#include "LangInfo.h"
-#include "utils/Screenshot.h"
-#include "Util.h"
-#include "URL.h"
-#include "guilib/TextureManager.h"
+#include "system.h"
+#include "addons/AddonInstaller.h"
+#include "addons/GUIDialogAddonSettings.h"
+#include "addons/GUIDialogAddonInfo.h"
+#include "addons/GUIWindowAddonBrowser.h"
+#include "addons/Skin.h"
+#include "ApplicationMessenger.h"
+#include "Autorun.h"
+#if defined(TARGET_ANDROID)
+#include "android/activity/XBMCApp.h"
+#endif
+
 #include "cores/IPlayer.h"
+#include "cores/DllLoader/DllLoaderContainer.h"
 #include "cores/dvdplayer/DVDFileInfo.h"
 #include "cores/AudioEngine/AEFactory.h"
 #include "cores/AudioEngine/Utils/AEUtil.h"
-#include "PlayListPlayer.h"
-#include "Autorun.h"
-#include "video/Bookmark.h"
+#ifdef HAS_DVD_DRIVE
+#include <cdio/logging.h>
+#endif
+#if defined(HAVE_LIBCRYSTALHD)
+#include "cores/dvdplayer/DVDCodecs/Video/CrystalHD.h"
+#endif
+#ifdef HAS_VIDEO_PLAYBACK
+#include "cores/VideoRenderers/RenderManager.h"
+#endif
+
+#include "DatabaseManager.h"
+#include "dialogs/GUIDialogBusy.h"
+#include "dialogs/GUIDialogButtonMenu.h"
+#include "dialogs/GUIDialogCache.h"
+#include "dialogs/GUIDialogContextMenu.h"
+#include "dialogs/GUIDialogExtendedProgressBar.h"
+#include "dialogs/GUIDialogFavourites.h"
+#include "dialogs/GUIDialogGamepad.h"
+#include "dialogs/GUIDialogKaiToast.h"
+#include "dialogs/GUIDialogKeyboardGeneric.h"
+#include "dialogs/GUIDialogMediaFilter.h"
+#include "dialogs/GUIDialogMediaSource.h"
+#include "dialogs/GUIDialogMuteBug.h"
+#include "dialogs/GUIDialogNumeric.h"
+#include "dialogs/GUIDialogOK.h"
+#include "dialogs/GUIDialogPlayEject.h"
+#include "dialogs/GUIDialogPlayerControls.h"
+#include "dialogs/GUIDialogProgress.h"
+#include "dialogs/GUIDialogSeekBar.h"
+#include "dialogs/GUIDialogSelect.h"
+#include "dialogs/GUIDialogSlider.h"
+#include "dialogs/GUIDialogSmartPlaylistEditor.h"
+#include "dialogs/GUIDialogSmartPlaylistRule.h"
+#include "dialogs/GUIDialogSubMenu.h"
+#include "dialogs/GUIDialogTextViewer.h"
+#include "dialogs/GUIDialogVolumeBar.h"
+#include "dialogs/GUIDialogYesNo.h"
+#ifdef HAS_DBUS
+#include <dbus/dbus.h>
+#endif
+
+#include "epg/EpgContainer.h"
+
+#include "filesystem/DllLibCurl.h"
+#include "filesystem/DirectoryCache.h"
+#include "filesystem/MythSession.h"
+#include "filesystem/PluginDirectory.h"
+#include "filesystem/SpecialProtocol.h"
+#include "filesystem/StackDirectory.h"
+#ifdef HAS_FILESYSTEM_AFP
+#include "filesystem/AFPFile.h"
+#endif
+#if defined(FILESYSTEM) && !defined(_LINUX)
+#include "filesystem/FileDAAP.h"
+#endif
+#ifdef HAS_FILESYSTEM_HTSP
+#include "filesystem/HTSPDirectory.h"
+#endif
+#ifdef HAS_FILESYSTEM_NFS
+#include "filesystem/NFSFile.h"
+#endif
+#ifdef HAS_FILESYSTEM_RAR
+#include "filesystem/RarManager.h"
+#endif
+#ifdef HAS_FILESYSTEM_SAP
+#include "filesystem/SAPDirectory.h"
+#endif
+#ifdef HAS_FILESYSTEM_SFTP
+#include "filesystem/SFTPFile.h"
+#endif
+#if defined(_LINUX) && defined(HAS_FILESYSTEM_SMB)
+#include "filesystem/SMBDirectory.h"
+#endif
+#ifdef HAS_UPNP
+#include "filesystem/UPnPDirectory.h"
+#include "network/upnp/UPnP.h"
+#include "network/upnp/UPnPSettings.h"
+#endif
+
+#include "GUIInfoManager.h"
+#include "GUILargeTextureManager.h"
+#include "GUIPassword.h"
+#include "GUIUserMessages.h"
+#include "guilib/GUIAudioManager.h"
+#include "guilib/GUIColorManager.h"
+#include "guilib/GUIControlFactory.h"
+#include "guilib/GUIControlProfiler.h"
+#include "guilib/GUIFontManager.h"
+#include "guilib/GUITextLayout.h"
+#include "guilib/GUIWindowManager.h"
+#include "guilib/LocalizeStrings.h"
+#include "guilib/TextureManager.h"
+
+#include "input/ButtonTranslator.h"
+#include "input/InertialScrollingHandler.h"
+#include "input/KeyboardStat.h"
+#include "input/MouseStat.h"
+#include "input/XBMC_vkeys.h"
+#include "interfaces/AnnouncementManager.h"
+#include "interfaces/Builtins.h"
+#ifdef HAS_LIRC
+#include "input/linux/LIRC.h"
+#endif
+#ifdef HAS_IRSERVERSUITE
+#include "input/windows/IRServerSuite.h"
+#endif
+#ifdef HAS_JSONRPC
+#include "interfaces/json-rpc/JSONRPC.h"
+#include "network/TCPServer.h"
+#endif
+#ifdef HAS_PYTHON
+#include "interfaces/python/XBPython.h"
+#endif
+#if defined(TARGET_WINDOWS)
+#include "input/windows/WINJoystick.h"
+#elif defined(HAS_SDL_JOYSTICK) || defined(HAS_EVENT_SERVER)
+#include "input/SDLJoystick.h"
+#endif
+#include "LangInfo.h"
+#ifdef HAS_HAL
+#include "linux/HALManager.h"
+#endif
+#include "music/dialogs/GUIDialogMusicInfo.h"
+#include "music/dialogs/GUIDialogMusicOSD.h"
+#include "music/dialogs/GUIDialogMusicOverlay.h"
+#include "music/dialogs/GUIDialogSongInfo.h"
+#include "music/dialogs/GUIDialogVisualisationPresetList.h"
+#include "music/infoscanner/MusicInfoScanner.h"
+#include "music/windows/GUIWindowMusicPlaylist.h"
+#include "music/windows/GUIWindowMusicSongs.h"
+#include "music/windows/GUIWindowMusicNav.h"
+#include "music/windows/GUIWindowMusicPlaylistEditor.h"
+#include "music/windows/GUIWindowVisualisation.h"
+#ifdef HAS_KARAOKE
+#include "music/karaoke/karaokelyricsmanager.h"
+#include "music/karaoke/GUIDialogKaraokeSongSelector.h"
+#include "music/karaoke/GUIWindowKaraokeLyrics.h"
+#endif
+
+#include "network/GUIDialogNetworkSetup.h"
+#include "network/Network.h"
+#include "network/Zeroconf.h"
+#include "network/ZeroconfBrowser.h"
+#ifdef HAS_AIRPLAY
+#include "network/AirPlayServer.h"
+#endif
+#ifdef HAS_AIRTUNES
+#include "network/AirTunesServer.h"
+#endif
+#ifdef HAS_EVENT_SERVER
+#include "network/EventServer.h"
+#endif
+#ifdef HAS_LINUX_NETWORK
+#include "network/GUIDialogAccessPoints.h"
+#endif
 #ifdef HAS_WEB_SERVER
 #include "network/WebServer.h"
 #include "network/httprequesthandler/HTTPImageHandler.h"
@@ -45,219 +199,37 @@
 #include "network/httprequesthandler/HTTPJsonRpcHandler.h"
 #endif
 #ifdef HAS_WEB_INTERFACE
-#include "network/httprequesthandler/HTTPWebinterfaceHandler.h"
 #include "network/httprequesthandler/HTTPWebinterfaceAddonsHandler.h"
+#include "network/httprequesthandler/HTTPWebinterfaceHandler.h"
 #endif
 #endif
-#include "guilib/GUIControlProfiler.h"
-#include "utils/LangCodeExpander.h"
-#include "GUIInfoManager.h"
-#include "playlists/PlayListFactory.h"
-#include "guilib/GUIFontManager.h"
-#include "guilib/GUIColorManager.h"
-#include "guilib/GUITextLayout.h"
-#include "addons/Skin.h"
-#ifdef HAS_PYTHON
-#include "interfaces/python/XBPython.h"
+#ifdef TARGET_DARWIN
+#include "osx/DarwinUtils.h"
 #endif
-#include "input/ButtonTranslator.h"
-#include "guilib/GUIAudioManager.h"
-#include "GUIPassword.h"
-#include "input/InertialScrollingHandler.h"
-#include "ApplicationMessenger.h"
-#include "SectionLoader.h"
-#include "cores/DllLoader/DllLoaderContainer.h"
-#include "GUIUserMessages.h"
-#include "filesystem/DirectoryCache.h"
-#include "filesystem/StackDirectory.h"
-#include "filesystem/SpecialProtocol.h"
-#include "filesystem/DllLibCurl.h"
-#include "filesystem/MythSession.h"
-#include "filesystem/PluginDirectory.h"
-#ifdef HAS_FILESYSTEM_SAP
-#include "filesystem/SAPDirectory.h"
-#endif
-#ifdef HAS_FILESYSTEM_HTSP
-#include "filesystem/HTSPDirectory.h"
-#endif
-#include "utils/TuxBoxUtil.h"
-#include "utils/SystemInfo.h"
-#include "utils/TimeUtils.h"
-#include "GUILargeTextureManager.h"
-#include "TextureCache.h"
-#include "playlists/SmartPlayList.h"
-#ifdef HAS_FILESYSTEM_RAR
-#include "filesystem/RarManager.h"
-#endif
-#include "playlists/PlayList.h"
-#include "profiles/ProfilesManager.h"
-#include "windowing/WindowingFactory.h"
-#include "powermanagement/PowerManager.h"
-#include "powermanagement/DPMSSupport.h"
-#include "settings/Settings.h"
-#include "settings/AdvancedSettings.h"
-#include "settings/DisplaySettings.h"
-#include "settings/MediaSettings.h"
-#include "settings/MediaSourceSettings.h"
-#include "settings/SkinSettings.h"
-#include "guilib/LocalizeStrings.h"
-#include "utils/CPUInfo.h"
-#include "utils/RssManager.h"
-#include "utils/SeekHandler.h"
-#include "view/ViewStateSettings.h"
-
-#include "input/KeyboardStat.h"
-#include "input/XBMC_vkeys.h"
-#include "input/MouseStat.h"
-
-#ifdef HAS_SDL
-#include <SDL/SDL.h>
+#ifdef TARGET_DARWIN_OSX
+#include "osx/CocoaInterface.h"
+#include "osx/XBMCHelper.h"
 #endif
 
-#if defined(FILESYSTEM) && !defined(_LINUX)
-#include "filesystem/FileDAAP.h"
-#endif
-#ifdef HAS_UPNP
-#include "network/upnp/UPnP.h"
-#include "network/upnp/UPnPSettings.h"
-#include "filesystem/UPnPDirectory.h"
-#endif
-#if defined(_LINUX) && defined(HAS_FILESYSTEM_SMB)
-#include "filesystem/SMBDirectory.h"
-#endif
-#ifdef HAS_FILESYSTEM_NFS
-#include "filesystem/NFSFile.h"
-#endif
-#ifdef HAS_FILESYSTEM_AFP
-#include "filesystem/AFPFile.h"
-#endif
-#ifdef HAS_FILESYSTEM_SFTP
-#include "filesystem/SFTPFile.h"
-#endif
 #include "PartyModeManager.h"
-#ifdef HAS_VIDEO_PLAYBACK
-#include "cores/VideoRenderers/RenderManager.h"
-#endif
-#ifdef HAS_KARAOKE
-#include "music/karaoke/karaokelyricsmanager.h"
-#include "music/karaoke/GUIDialogKaraokeSongSelector.h"
-#include "music/karaoke/GUIWindowKaraokeLyrics.h"
-#endif
-#include "network/Zeroconf.h"
-#include "network/ZeroconfBrowser.h"
-#ifndef _LINUX
-#include "threads/platform/win/Win32Exception.h"
-#endif
-#ifdef HAS_EVENT_SERVER
-#include "network/EventServer.h"
-#endif
-#ifdef HAS_DBUS
-#include <dbus/dbus.h>
-#endif
-#ifdef HAS_JSONRPC
-#include "interfaces/json-rpc/JSONRPC.h"
-#include "network/TCPServer.h"
-#endif
-#ifdef HAS_AIRPLAY
-#include "network/AirPlayServer.h"
-#endif
-#ifdef HAS_AIRTUNES
-#include "network/AirTunesServer.h"
-#endif
-#if defined(HAVE_LIBCRYSTALHD)
-#include "cores/dvdplayer/DVDCodecs/Video/CrystalHD.h"
-#endif
-#include "interfaces/AnnouncementManager.h"
 #include "peripherals/Peripherals.h"
 #include "peripherals/dialogs/GUIDialogPeripheralManager.h"
 #include "peripherals/dialogs/GUIDialogPeripheralSettings.h"
 #include "peripherals/devices/PeripheralImon.h"
-#include "music/infoscanner/MusicInfoScanner.h"
-
-// Windows includes
-#include "guilib/GUIWindowManager.h"
-#include "windows/GUIWindowHome.h"
-#include "settings/windows/GUIWindowSettings.h"
-#include "windows/GUIWindowFileManager.h"
-#include "settings/windows/GUIWindowSettingsCategory.h"
-#include "music/windows/GUIWindowMusicPlaylist.h"
-#include "music/windows/GUIWindowMusicSongs.h"
-#include "music/windows/GUIWindowMusicNav.h"
-#include "music/windows/GUIWindowMusicPlaylistEditor.h"
-#include "video/windows/GUIWindowVideoPlaylist.h"
-#include "music/dialogs/GUIDialogMusicInfo.h"
-#include "video/dialogs/GUIDialogVideoInfo.h"
-#include "video/windows/GUIWindowVideoNav.h"
-#include "profiles/windows/GUIWindowSettingsProfile.h"
-#ifdef HAS_GL
-#include "rendering/gl/GUIWindowTestPatternGL.h"
-#endif
-#ifdef HAS_DX
-#include "rendering/dx/GUIWindowTestPatternDX.h"
-#endif
-#include "settings/windows/GUIWindowSettingsScreenCalibration.h"
-#include "programs/GUIWindowPrograms.h"
-#include "pictures/GUIWindowPictures.h"
-#include "windows/GUIWindowWeather.h"
-#include "windows/GUIWindowLoginScreen.h"
-#include "addons/GUIWindowAddonBrowser.h"
-#include "music/windows/GUIWindowVisualisation.h"
-#include "windows/GUIWindowDebugInfo.h"
-#include "windows/GUIWindowPointer.h"
-#include "windows/GUIWindowSystemInfo.h"
-#include "windows/GUIWindowScreensaver.h"
-#include "windows/GUIWindowScreensaverDim.h"
-#include "pictures/GUIWindowSlideShow.h"
-#include "windows/GUIWindowStartup.h"
-#include "video/windows/GUIWindowFullScreen.h"
-#include "video/dialogs/GUIDialogVideoOSD.h"
-#include "music/dialogs/GUIDialogMusicOverlay.h"
-#include "video/dialogs/GUIDialogVideoOverlay.h"
-#include "video/VideoInfoScanner.h"
-#include "video/PlayerController.h"
-
-// Dialog includes
-#include "music/dialogs/GUIDialogMusicOSD.h"
-#include "music/dialogs/GUIDialogVisualisationPresetList.h"
-#include "dialogs/GUIDialogTextViewer.h"
-#include "network/GUIDialogNetworkSetup.h"
-#include "dialogs/GUIDialogMediaSource.h"
-#include "video/dialogs/GUIDialogVideoSettings.h"
-#include "video/dialogs/GUIDialogAudioSubtitleSettings.h"
-#include "video/dialogs/GUIDialogVideoBookmarks.h"
-#include "profiles/dialogs/GUIDialogProfileSettings.h"
-#include "profiles/dialogs/GUIDialogLockSettings.h"
-#include "settings/dialogs/GUIDialogContentSettings.h"
-#include "dialogs/GUIDialogBusy.h"
-#include "dialogs/GUIDialogKeyboardGeneric.h"
-#include "dialogs/GUIDialogYesNo.h"
-#include "dialogs/GUIDialogOK.h"
-#include "dialogs/GUIDialogProgress.h"
-#include "dialogs/GUIDialogExtendedProgressBar.h"
-#include "dialogs/GUIDialogSelect.h"
-#include "dialogs/GUIDialogSeekBar.h"
-#include "dialogs/GUIDialogKaiToast.h"
-#include "dialogs/GUIDialogVolumeBar.h"
-#include "dialogs/GUIDialogMuteBug.h"
-#include "video/dialogs/GUIDialogFileStacking.h"
-#include "dialogs/GUIDialogNumeric.h"
-#include "dialogs/GUIDialogGamepad.h"
-#include "dialogs/GUIDialogSubMenu.h"
-#include "dialogs/GUIDialogFavourites.h"
-#include "dialogs/GUIDialogButtonMenu.h"
-#include "dialogs/GUIDialogContextMenu.h"
-#include "dialogs/GUIDialogPlayerControls.h"
-#include "music/dialogs/GUIDialogSongInfo.h"
-#include "dialogs/GUIDialogSmartPlaylistEditor.h"
-#include "dialogs/GUIDialogSmartPlaylistRule.h"
 #include "pictures/GUIDialogPictureInfo.h"
-#include "addons/GUIDialogAddonSettings.h"
-#include "addons/GUIDialogAddonInfo.h"
-#ifdef HAS_LINUX_NETWORK
-#include "network/GUIDialogAccessPoints.h"
-#endif
-
-/* PVR related include Files */
+#include "pictures/GUIWindowPictures.h"
+#include "pictures/GUIWindowSlideShow.h"
+#include "PlayListPlayer.h"
+#include "playlists/PlayList.h"
+#include "playlists/PlayListFactory.h"
+#include "playlists/SmartPlayList.h"
+#include "powermanagement/PowerManager.h"
+#include "powermanagement/DPMSSupport.h"
+#include "profiles/windows/GUIWindowSettingsProfile.h"
+#include "profiles/dialogs/GUIDialogLockSettings.h"
+#include "profiles/dialogs/GUIDialogProfileSettings.h"
+#include "profiles/ProfilesManager.h"
+#include "programs/GUIWindowPrograms.h"
 #include "pvr/PVRManager.h"
 #include "pvr/timers/PVRTimers.h"
 #include "pvr/windows/GUIWindowPVR.h"
@@ -272,24 +244,86 @@
 #include "pvr/dialogs/GUIDialogPVRRecordingInfo.h"
 #include "pvr/dialogs/GUIDialogPVRTimerSettings.h"
 
-#include "epg/EpgContainer.h"
+#ifdef HAS_DX
+#include "rendering/dx/GUIWindowTestPatternDX.h"
+#endif
+#ifdef HAS_GL
+#include "rendering/gl/GUIWindowTestPatternGL.h"
+#endif
 
-#include "video/dialogs/GUIDialogFullScreenInfo.h"
-#include "video/dialogs/GUIDialogTeletext.h"
-#include "dialogs/GUIDialogSlider.h"
-#include "guilib/GUIControlFactory.h"
-#include "dialogs/GUIDialogCache.h"
-#include "dialogs/GUIDialogPlayEject.h"
-#include "dialogs/GUIDialogMediaFilter.h"
+#include "SectionLoader.h"
+#include "settings/AdvancedSettings.h"
+#include "settings/dialogs/GUIDialogContentSettings.h"
+#include "settings/DisplaySettings.h"
+#include "settings/MediaSettings.h"
+#include "settings/MediaSourceSettings.h"
+#include "settings/Settings.h"
+#include "settings/SkinSettings.h"
+#include "settings/windows/GUIWindowSettingsScreenCalibration.h"
+#include "settings/windows/GUIWindowSettings.h"
+#include "settings/windows/GUIWindowSettingsCategory.h"
+#include "storage/MediaManager.h"
+#ifdef HAS_SDL
+#include <SDL/SDL.h>
+#endif
+
+#include "TextureCache.h"
+#include "threads/SystemClock.h"
+#ifndef _LINUX
+#include "threads/platform/win/Win32Exception.h"
+#endif
+
+#include "URL.h"
+#include "Util.h"
+#include "utils/AlarmClock.h"
+#include "utils/CPUInfo.h"
+#include "utils/JobManager.h"
+#include "utils/LangCodeExpander.h"
+#include "utils/RssManager.h"
+#include "utils/Screenshot.h"
+#include "utils/SeekHandler.h"
+#include "utils/Splash.h"
+#include "utils/StringUtils.h"
+#include "utils/SystemInfo.h"
+#include "utils/TimeUtils.h"
+#include "utils/TuxBoxUtil.h"
+#include "utils/Variant.h"
+#include "utils/Weather.h"
 #include "utils/XMLUtils.h"
-#include "addons/AddonInstaller.h"
-
 #ifdef HAS_PERFORMANCE_SAMPLE
 #include "utils/PerformanceSample.h"
 #else
 #define MEASURE_FUNCTION
 #endif
 
+#include "video/Bookmark.h"
+#include "video/dialogs/GUIDialogVideoOSD.h"
+#include "video/dialogs/GUIDialogVideoOverlay.h"
+#include "video/dialogs/GUIDialogVideoInfo.h"
+#include "video/dialogs/GUIDialogAudioSubtitleSettings.h"
+#include "video/dialogs/GUIDialogFileStacking.h"
+#include "video/dialogs/GUIDialogFullScreenInfo.h"
+#include "video/dialogs/GUIDialogTeletext.h"
+#include "video/dialogs/GUIDialogVideoBookmarks.h"
+#include "video/dialogs/GUIDialogVideoSettings.h"
+#include "video/PlayerController.h"
+#include "video/VideoInfoScanner.h"
+#include "video/windows/GUIWindowFullScreen.h"
+#include "video/windows/GUIWindowVideoNav.h"
+#include "video/windows/GUIWindowVideoPlaylist.h"
+#include "view/ViewStateSettings.h"
+
+#include "windowing/WindowingFactory.h"
+#include "windows/GUIWindowDebugInfo.h"
+#include "windows/GUIWindowFileManager.h"
+#include "windows/GUIWindowHome.h"
+#include "windows/GUIWindowLoginScreen.h"
+#include "windows/GUIWindowPointer.h"
+#include "windows/GUIWindowSystemInfo.h"
+#include "windows/GUIWindowScreensaver.h"
+#include "windows/GUIWindowScreensaverDim.h"
+#include "windows/GUIWindowStartup.h"
+#include "windows/GUIWindowWeather.h"
 #ifdef TARGET_WINDOWS
 #include <shlobj.h>
 #include "win32util.h"
@@ -298,50 +332,10 @@
 #include "windowing/X11/XRandR.h"
 #endif
 
-#ifdef TARGET_DARWIN_OSX
-#include "osx/CocoaInterface.h"
-#include "osx/XBMCHelper.h"
-#endif
-#ifdef TARGET_DARWIN
-#include "osx/DarwinUtils.h"
-#endif
-
-
-#ifdef HAS_DVD_DRIVE
-#include <cdio/logging.h>
-#endif
-
-#ifdef HAS_HAL
-#include "linux/HALManager.h"
-#endif
-
-#include "storage/MediaManager.h"
-#include "utils/JobManager.h"
 #include "utils/SaveFileStateJob.h"
-#include "utils/AlarmClock.h"
-#include "utils/StringUtils.h"
-#include "utils/Weather.h"
-#include "DatabaseManager.h"
 
 #ifdef _LINUX
 #include "XHandle.h"
-#endif
-
-#ifdef HAS_LIRC
-#include "input/linux/LIRC.h"
-#endif
-#ifdef HAS_IRSERVERSUITE
-  #include "input/windows/IRServerSuite.h"
-#endif
-
-#if defined(TARGET_WINDOWS)
-#include "input/windows/WINJoystick.h"
-#elif defined(HAS_SDL_JOYSTICK) || defined(HAS_EVENT_SERVER)
-#include "input/SDLJoystick.h"
-#endif
-
-#if defined(TARGET_ANDROID)
-#include "android/activity/XBMCApp.h"
 #endif
 
 using namespace std;
