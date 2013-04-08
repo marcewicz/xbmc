@@ -19,6 +19,7 @@
  */
 
 #include "Application.h"
+#include "network/Network.h"
 #include "system.h"
 #include "addons/AddonInstaller.h"
 #include "addons/GUIDialogAddonSettings.h"
@@ -176,7 +177,6 @@
 #endif
 
 #include "network/GUIDialogNetworkSetup.h"
-#include "network/Network.h"
 #include "network/Zeroconf.h"
 #include "network/ZeroconfBrowser.h"
 #ifdef HAS_AIRPLAY
